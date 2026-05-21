@@ -36,6 +36,8 @@ const STEPS = [
     defaultCount: 5,
     layout: "normal",
     repeatable: false,
+    introImage: `${ASSET_ROOT}/奖品贴图/third-1.png`,
+    introLabel: "一等奖奖品图",
   },
   {
     id: "first-prize-b",
@@ -52,6 +54,8 @@ const STEPS = [
     defaultCount: 1,
     layout: "special",
     repeatable: true,
+    introImage: `${ASSET_ROOT}/奖品贴图/third-3.png`,
+    introLabel: "特等奖奖品图",
   },
   {
     id: "super-special-prize",
@@ -60,6 +64,8 @@ const STEPS = [
     defaultCount: 1,
     layout: "special",
     repeatable: true,
+    introImage: `${ASSET_ROOT}/奖品贴图/third-4.png`,
+    introLabel: "超级特等奖奖品图",
   },
 ];
 
@@ -364,7 +370,7 @@ function render(animateStage = false) {
   }
 
   if (IS_CONTROL) renderStepList();
-  renderStage(winners, layout, animateStage);
+  renderStage(step, winners, layout, animateStage);
   if (IS_CONTROL) renderResults();
 }
 
@@ -404,7 +410,7 @@ function renderStepList() {
   });
 }
 
-function renderStage(winners, layout, animateStage) {
+function renderStage(step, winners, layout, animateStage) {
   const fragment = document.createDocumentFragment();
   const group = currentGroup(winners, layout);
   const nextRenderedDigits = new Map();
@@ -421,9 +427,24 @@ function renderStage(winners, layout, animateStage) {
 
   if (!els.assetLayer) return;
   els.assetLayer.innerHTML = "";
-  els.assetLayer.setAttribute("aria-label", group.map(displayDate).join("、"));
+  if (!group.length && step.introImage) {
+    fragment.append(createPrizeIntro(step));
+  }
+  els.assetLayer.setAttribute(
+    "aria-label",
+    group.length ? group.map(displayDate).join("、") : step.introLabel ?? "",
+  );
   els.assetLayer.append(fragment);
   lastRenderedDigits = nextRenderedDigits;
+}
+
+function createPrizeIntro(step) {
+  const img = document.createElement("img");
+  img.className = "prize-intro";
+  img.src = step.introImage;
+  img.alt = step.introLabel ?? "";
+  img.draggable = false;
+  return img;
 }
 
 function createDigitCard(layout, slot, digitIndex, part, previousPart, rowIndex, animateStage) {
@@ -510,7 +531,7 @@ function createPreviewFrame(step) {
 }
 
 function renderPreview(step, frame = createPreviewFrame(step)) {
-  renderStage(frame.winners, frame.layout, true);
+  renderStage(step, frame.winners, frame.layout, true);
   return frame;
 }
 
@@ -541,7 +562,7 @@ function renderLiveFrame(message) {
   setText(els.stageState, "ROLLING");
   setText(els.groupReadout, groupCount ? `第 1 / ${groupCount} 组` : "第 0 / 0 组");
   els.lotteryStage?.classList.add("is-rolling");
-  renderStage(winners, layout, true);
+  renderStage(step, winners, layout, true);
 }
 
 function renderResults() {
