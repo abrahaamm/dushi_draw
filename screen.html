@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>笃实抽奖大屏</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script defer src="./app.js"></script>
+  </head>
+  <body data-mode="screen">
+    <main class="screen-shell" aria-label="观众大屏">
+      <div class="screen-meta">
+        <div>
+          <p class="eyebrow" id="roundEyebrow">第一轮</p>
+          <h1 id="stageTitle">三等奖</h1>
+        </div>
+        <div class="stage-meta">
+          <span id="poolCount">716 个号码</span>
+          <span id="drawSummary">待抽取</span>
+        </div>
+      </div>
+
+      <section class="stage-frame screen-frame" aria-label="抽奖舞台">
+        <div class="lottery-stage audience-stage" id="lotteryStage">
+          <img class="stage-bg" src="./抽奖素材-1/底图.png" alt="" />
+          <div class="ambient-wash"></div>
+          <div class="asset-layer" id="assetLayer" aria-live="polite"></div>
+          <div class="stage-state" id="stageState">READY</div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

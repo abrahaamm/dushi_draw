@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>笃实抽奖控制台</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script defer src="./app.js"></script>
+  </head>
+  <body data-mode="control">
+    <div class="app-shell">
+      <main class="stage-area">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow" id="roundEyebrow">第一轮</p>
+            <h1 id="stageTitle">三等奖</h1>
+          </div>
+          <div class="stage-meta">
+            <span id="poolCount">716 个号码</span>
+            <span id="drawSummary">待抽取</span>
+          </div>
+        </header>
+
+        <section class="stage-frame" aria-label="抽奖舞台">
+          <div class="lottery-stage" id="lotteryStage">
+            <img class="stage-bg" src="./抽奖素材-1/底图.png" alt="" />
+            <div class="ambient-wash"></div>
+            <div class="asset-layer" id="assetLayer" aria-live="polite"></div>
+            <div class="stage-state" id="stageState">READY</div>
+          </div>
+        </section>
+
+        <nav class="stage-controls" aria-label="展示分组">
+          <button class="icon-button" id="prevGroup" type="button" title="上一组" aria-label="上一组">
+            ‹
+          </button>
+          <div class="group-readout" id="groupReadout">第 0 / 0 组</div>
+          <button class="icon-button" id="nextGroup" type="button" title="下一组" aria-label="下一组">
+            ›
+          </button>
+        </nav>
+      </main>
+
+      <aside class="control-panel" aria-label="抽奖控制">
+        <section class="panel-section">
+          <div class="section-heading">
+            <span>流程</span>
+            <span id="stepProgress">1 / 6</span>
+          </div>
+          <div class="step-list" id="stepList"></div>
+        </section>
+
+        <section class="panel-section operator-panel">
+          <div class="section-heading">
+            <span>当前抽取</span>
+            <span id="currentMode">普通</span>
+          </div>
+
+          <label class="field-label" for="drawCount">人数</label>
+          <input id="drawCount" class="number-input" type="number" min="1" max="716" />
+
+          <div class="action-grid">
+            <button class="soft-button" id="prevStep" type="button" title="上一轮">
+              <span aria-hidden="true">‹</span>
+              上一轮
+            </button>
+            <button class="soft-button" id="nextStep" type="button" title="下一轮">
+              下一轮
+              <span aria-hidden="true">›</span>
+            </button>
+          </div>
+
+          <button class="primary-button" id="drawButton" type="button">开始抽取</button>
+          <button class="confirm-button" id="confirmButton" type="button" disabled>确认中奖</button>
+
+          <div class="utility-row">
+            <button class="utility-button screen-launch" id="screenButton" type="button" title="打开大屏">
+              大屏↗
+            </button>
+            <button class="utility-button" id="fullscreenButton" type="button" title="全屏">
+              ⛶
+            </button>
+            <button class="utility-button" id="exportButton" type="button" title="导出">
+              ⇩
+            </button>
+            <button class="utility-button danger" id="resetButton" type="button" title="清空">
+              ×
+            </button>
+          </div>
+        </section>
+
+        <section class="panel-section results-panel">
+          <div class="section-heading">
+            <span>结果</span>
+            <span id="resultCount">0</span>
+          </div>
+          <div class="result-list" id="resultList"></div>
+        </section>
+      </aside>
+    </div>
+  </body>
+</html>
