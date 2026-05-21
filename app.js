@@ -1,8 +1,11 @@
 const ASSET_ROOT = "./抽奖素材-1";
-const STORAGE_KEY = "dushi-lottery-state-v2";
-const CHANNEL_KEY = "dushi-lottery-live-v2";
+const STORAGE_KEY = "dushi-lottery-state-v3";
+const CHANNEL_KEY = "dushi-lottery-live-v3";
 const POOL_START = "2024-06-06";
 const POOL_END = "2026-05-22";
+const THIRD_ROUND_START_INDEX = 2;
+const SYMBOLIC_ROLL_TICKS = 4;
+const ROLL_INTERVAL_MS = 960;
 const APP_MODE = document.body.dataset.mode || "control";
 const IS_CONTROL = APP_MODE === "control";
 const CLIENT_ID = Math.random().toString(36).slice(2);
@@ -30,8 +33,8 @@ const STEPS = [
     id: "first-prize-a",
     round: "第三轮 1/4",
     name: "一等奖 · 第一抽",
-    defaultCount: 1,
-    layout: "special",
+    defaultCount: 5,
+    layout: "normal",
     repeatable: false,
   },
   {
@@ -106,6 +109,9 @@ const DATE_POOL = createDatePool(POOL_START, POOL_END);
 
 let state = loadState();
 let rolling = false;
+let rollingMode = null;
+let rollingStepIndex = null;
+let rollingTimer = null;
 let latestLiveFrame = null;
 let lastRenderedDigits = new Map();
 
@@ -220,6 +226,10 @@ function getFinalWinners(step) {
   return state.results[step.id] ?? [];
 }
 
+function isManualStopStep(index = state.stepIndex) {
+  return index >= THIRD_ROUND_START_INDEX;
+}
+
 function resolveLayout(step, winners) {
   const count = Array.isArray(winners) ? winners.length : getStepCount(step);
   if (step.layout === "special" && count <= 1) return "special";
@@ -314,7 +324,10 @@ function render(animateStage = false) {
   setText(els.poolCount, `${DATE_POOL.length} 个号码`);
   setText(els.stepProgress, `${state.stepIndex + 1} / ${STEPS.length}`);
   if (els.drawCount) els.drawCount.value = getStepCount(step);
-  setText(els.currentMode, step.repeatable ? "可重抽" : layout === "special" ? "中央" : "普通");
+  setText(
+    els.currentMode,
+    isManualStopStep() ? (step.repeatable ? "喊停可重抽" : "喊停") : "短滚动",
+  );
 
   const finalCount = getFinalWinners(step).length;
   const pendingCount = state.pending[step.id]?.length ?? 0;
@@ -328,23 +341,25 @@ function render(animateStage = false) {
   }
 
   setText(els.groupReadout, groupCount ? `第 ${state.groupIndex + 1} / ${groupCount} 组` : "第 0 / 0 组");
-  setDisabled(els.prevGroup, groupCount <= 1 || state.groupIndex <= 0);
-  setDisabled(els.nextGroup, groupCount <= 1 || state.groupIndex >= groupCount - 1);
+  setDisabled(els.prevGroup, rolling || groupCount <= 1 || state.groupIndex <= 0);
+  setDisabled(els.nextGroup, rolling || groupCount <= 1 || state.groupIndex >= groupCount - 1);
   setDisabled(els.prevStep, state.stepIndex <= 0 || rolling);
   setDisabled(els.nextStep, state.stepIndex >= STEPS.length - 1 || rolling);
   setDisabled(els.drawCount, rolling || step.repeatable);
-  setDisabled(els.drawButton, rolling);
+  setDisabled(els.drawButton, rolling && rollingMode !== "manual");
   setDisabled(els.confirmButton, rolling || !step.repeatable || !pendingCount);
 
   if (els.drawButton) {
-    if (rolling) {
-      els.drawButton.textContent = "抽取中...";
+    if (rolling && rollingMode === "manual") {
+      els.drawButton.textContent = "停止抽取";
+    } else if (rolling) {
+      els.drawButton.textContent = "滚动中...";
     } else if (step.repeatable && pendingCount && !finalCount) {
-      els.drawButton.textContent = "继续重抽";
+      els.drawButton.textContent = "继续滚动";
     } else if (finalCount) {
-      els.drawButton.textContent = "重新抽取";
+      els.drawButton.textContent = isManualStopStep() ? "再次滚动" : "重新抽取";
     } else {
-      els.drawButton.textContent = "开始抽取";
+      els.drawButton.textContent = isManualStopStep() ? "开始滚动" : "开始抽取";
     }
   }
 
@@ -360,6 +375,7 @@ function renderStepList() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "step-button";
+    button.disabled = rolling;
     if (index === state.stepIndex) button.classList.add("is-active");
     if (getFinalWinners(step).length) button.classList.add("is-done");
     button.addEventListener("click", () => {
@@ -498,6 +514,19 @@ function renderPreview(step, frame = createPreviewFrame(step)) {
   return frame;
 }
 
+function renderAndPublishPreview(step, stepIndex = state.stepIndex) {
+  const frame = renderPreview(step);
+  latestLiveFrame = {
+    type: "preview",
+    stepIndex,
+    state: cloneState(),
+    winners: frame.winners,
+    layout: frame.layout,
+  };
+  publish(latestLiveFrame);
+  return frame;
+}
+
 function renderLiveFrame(message) {
   const step = STEPS[message.stepIndex] ?? activeStep();
   const winners = message.winners ?? [];
@@ -560,44 +589,69 @@ function renderResults() {
   });
 }
 
-async function runDraw() {
-  if (rolling) return;
+function runDraw() {
+  if (rolling) {
+    if (rollingMode === "manual") stopManualDraw();
+    return;
+  }
+
   const step = activeStep();
   const count = step.repeatable
     ? step.defaultCount
     : Math.max(1, Math.min(Number(els.drawCount.value) || step.defaultCount, DATE_POOL.length));
   state.customCounts[step.id] = count;
 
+  if (isManualStopStep()) {
+    startManualDraw(step);
+    return;
+  }
+
+  runSymbolicDraw(step, count);
+}
+
+async function runSymbolicDraw(step, count) {
   rolling = true;
+  rollingMode = "timed";
+  rollingStepIndex = state.stepIndex;
   els.lotteryStage?.classList.add("is-rolling");
   render();
   setText(els.drawSummary, "抽取中");
   setText(els.stageState, "ROLLING");
 
-  const duration = step.repeatable ? 4600 : Math.min(6400, 4300 + count * 38);
-  const startedAt = performance.now();
+  for (let i = 0; i < SYMBOLIC_ROLL_TICKS; i += 1) {
+    renderAndPublishPreview(step, rollingStepIndex);
+    await delay(ROLL_INTERVAL_MS);
+  }
 
-  await new Promise((resolve) => {
-    const spin = () => {
-      const frame = renderPreview(step);
-      latestLiveFrame = {
-        type: "preview",
-        stepIndex: state.stepIndex,
-        state: cloneState(),
-        winners: frame.winners,
-        layout: frame.layout,
-      };
-      publish(latestLiveFrame);
+  finishDraw(step, count);
+}
 
-      if (performance.now() - startedAt >= duration) {
-        resolve();
-        return;
-      }
-      window.setTimeout(spin, 1100);
-    };
-    spin();
-  });
+function startManualDraw(step) {
+  rolling = true;
+  rollingMode = "manual";
+  rollingStepIndex = state.stepIndex;
+  els.lotteryStage?.classList.add("is-rolling");
+  render();
+  setText(els.drawSummary, "滚动中 · 等待喊停");
+  setText(els.stageState, "ROLLING");
 
+  const spin = () => {
+    if (!rolling || rollingMode !== "manual") return;
+    renderAndPublishPreview(step, rollingStepIndex);
+    rollingTimer = window.setTimeout(spin, ROLL_INTERVAL_MS);
+  };
+
+  spin();
+}
+
+function stopManualDraw() {
+  const step = STEPS[rollingStepIndex] ?? activeStep();
+  const count = getStepCount(step);
+  finishDraw(step, count);
+}
+
+function finishDraw(step, count) {
+  clearRollingTimer();
   const winners = sampleDates(count);
   if (step.repeatable) {
     state.pending[step.id] = winners.slice(0, 1);
@@ -609,10 +663,23 @@ async function runDraw() {
   state.groupIndex = 0;
 
   rolling = false;
+  rollingMode = null;
+  rollingStepIndex = null;
   latestLiveFrame = null;
   els.lotteryStage?.classList.remove("is-rolling");
   saveState();
   render(true);
+}
+
+function clearRollingTimer() {
+  if (rollingTimer) {
+    window.clearTimeout(rollingTimer);
+    rollingTimer = null;
+  }
+}
+
+function delay(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function confirmCurrent() {
@@ -651,6 +718,11 @@ function exportResults() {
 
 function resetAll() {
   if (!window.confirm("确认清空所有抽奖结果？")) return;
+  clearRollingTimer();
+  rolling = false;
+  rollingMode = null;
+  rollingStepIndex = null;
+  latestLiveFrame = null;
   try {
     localStorage.removeItem(STORAGE_KEY);
   } catch {
