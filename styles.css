@@ -176,7 +176,6 @@ h1 {
   object-position: center;
   user-select: none;
   pointer-events: none;
-  filter: drop-shadow(0 1.1% 1.4% rgba(48, 43, 25, 0.18));
 }
 
 .calendar-card {
